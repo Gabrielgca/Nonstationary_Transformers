@@ -26,10 +26,26 @@ class Projector(nn.Module):
         # x:     B x S x E
         # stats: B x 1 x E
         # y:     B x O
+        # print("DEBUG before Projector input x.shape:", x.shape)
         batch_size = x.shape[0]
         x = self.series_conv(x)          # B x 1 x E
+        # print("DEBUG after conv Projector input x.shape:", x.shape)
         x = torch.cat([x, stats], dim=1) # B x 2 x E
+        # print("DEBUG after cat Projector input x.shape:", x.shape)
         x = x.view(batch_size, -1) # B x 2E
+        # print("DEBUG before backbone Projector input x.shape:", x.shape)
+
+        # SINGLE FEATURE DEBUGGING
+        # DEBUG before Projector input x.shape: torch.Size([32, 96, 1])
+        # DEBUG after conv Projector input x.shape: torch.Size([32, 1, 1])
+        # DEBUG after cat Projector input x.shape: torch.Size([32, 2, 1])
+        # DEBUG before backbone Projector input x.shape: torch.Size([32, 2])
+
+        # MULTIPLE FEATURES DEBUGGING
+        # DEBUG before Projector input x.shape: torch.Size([32, 96, 7])
+        # DEBUG after conv Projector input x.shape: torch.Size([32, 1, 7])
+        # DEBUG after cat Projector input x.shape: torch.Size([32, 2, 7])
+        # DEBUG before backbone Projector input x.shape: torch.Size([32, 14])
         y = self.backbone(x)       # B x O
 
         return y
@@ -100,7 +116,12 @@ class Model(nn.Module):
         std_enc = torch.sqrt(torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5).detach() # B x 1 x E
         x_enc = x_enc / std_enc
         x_dec_new = torch.cat([x_enc[:, -self.label_len: , :], torch.zeros_like(x_dec[:, -self.pred_len:, :])], dim=1).to(x_enc.device).clone()
-
+        # print("DEBUG x_raw shape:", x_raw.shape)
+        # print("DEBUG std_enc shape:", std_enc.shape)
+        #  SINGLE DEBUG x_raw shape: torch.Size([32, 96, 1])
+        # DEBUG std_enc shape: torch.Size([32, 1, 1])
+        # MULTIPLE DEBUG x_raw shape: torch.Size([32, 96, 7])
+        # DEBUG std_enc shape: torch.Size([32, 1, 7])
         tau = self.tau_learner(x_raw, std_enc).exp()     # B x S x E, B x 1 x E -> B x 1, positive scalar    
         delta = self.delta_learner(x_raw, mean_enc)      # B x S x E, B x 1 x E -> B x S
 

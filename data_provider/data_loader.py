@@ -132,6 +132,17 @@ class Dataset_ETT_minute(Dataset):
         self.scaler = StandardScaler()
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
+        # Index 0 is for training set
+        # Index 1 is for validation set
+        # Index 2 is for test set
+        # Borders for training/validation/testing sets
+        # Training border: 0 to 12 months
+        # Validation border: 12 months to 16 months
+        # Testing border: 16 months to 20 months
+        
+        # 12 months * 30 days * 24 hours * 4  = 15-minutes intervals
+        # 4 * 30 * 24 * 4 = 4 months
+        # 12 * 30 * 24 * 4 + 4 * 30 * 24 * 4 = 16 months
 
         border1s = [0, 12 * 30 * 24 * 4 - self.seq_len, 12 * 30 * 24 * 4 + 4 * 30 * 24 * 4 - self.seq_len]
         border2s = [12 * 30 * 24 * 4, 12 * 30 * 24 * 4 + 4 * 30 * 24 * 4, 12 * 30 * 24 * 4 + 8 * 30 * 24 * 4]
@@ -140,9 +151,11 @@ class Dataset_ETT_minute(Dataset):
 
         if self.features == 'M' or self.features == 'MS':
             cols_data = df_raw.columns[1:]
+            print("cols_data, ", cols_data)
             df_data = df_raw[cols_data]
         elif self.features == 'S':
             df_data = df_raw[[self.target]]
+            print("df_data, ", df_data)
 
         if self.scale:
             train_data = df_data[border1s[0]:border2s[0]]
@@ -167,6 +180,8 @@ class Dataset_ETT_minute(Dataset):
 
         self.data_x = data[border1:border2]
         self.data_y = data[border1:border2]
+        if (self.data_y == self.data_x).all():
+            print("Data_y equals Data_x")
         self.data_stamp = data_stamp
 
     def __getitem__(self, index):
