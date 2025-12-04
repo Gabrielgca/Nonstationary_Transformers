@@ -13,9 +13,9 @@ python -u run.py \
   --pred_len 96 \
   --e_layers 2 \
   --d_layers 1 \
-  --enc_in 1 \
-  --dec_in 1 \
-  --c_out 1 \
+  --enc_in 7 \
+  --dec_in 7 \
+  --c_out 7 \
   --gpu 0 \
   --des 'Exp_h256_l2' \
   --p_hidden_dims 256 256 \
