@@ -1,26 +1,85 @@
 # ps aux | grep python
 # pkill -f "python -u run.py --is_training 1"
-python -u run.py \
+
+# First result
+# Average MAE across participants:  0.6838327
+# Average MSE across participants:  0.46376944
+
+#Second result mse and mae NOT normalized
+# Average MAE across participants:  8.44871
+# Average MSE across participants:  43.34124
+# python -u run.py \
+#   --is_training 1 \
+#   --root_path ./dataset/ETT-small/ \
+#   --data_path ETTm2.csv \
+#   --model_id ETTm2_96_96 \
+#   --model ns_Transformer \
+#   --data ETTm2 \
+#   --features M \
+#   --seq_len 96 \
+#   --label_len 48 \
+#   --pred_len 96 \
+#   --e_layers 2 \
+#   --d_layers 1 \
+#   --enc_in 7 \
+#   --dec_in 7 \
+#   --c_out 7 \
+#   --gpu 0 \
+#   --des 'Exp_h256_l2' \
+#   --p_hidden_dims 256 256 \
+#   --p_hidden_layers 2 \
+#   --itr 1 &
+
+
+
+  python -u run.py \
   --is_training 1 \
-  --root_path ./dataset/ETT-small/ \
-  --data_path ETTm2.csv \
-  --model_id ETTm2_96_96 \
+  --root_path ./dataset/VVUser/chatting \
+  --data_path 0_VVUser.csv \
+  --model_id EVVUser_96_96 \
   --model ns_Transformer \
-  --data ETTm2 \
+  --data VVUser \
   --features S \
   --seq_len 96 \
   --label_len 48 \
   --pred_len 96 \
   --e_layers 2 \
   --d_layers 1 \
-  --enc_in 1 \
-  --dec_in 1 \
-  --c_out 1 \
+  --enc_in 2 \
+  --dec_in 2 \
+  --c_out 2 \
   --gpu 0 \
   --des 'Exp_h256_l2' \
   --p_hidden_dims 256 256 \
   --p_hidden_layers 2 \
-  --itr 1 &
+  --itr 1 \
+  --freq 'm' \
+  --loso 1 &
+
+
+# python -u run.py \
+#   --is_training 1 \
+#   --root_path ./dataset/VVUser/chatting \
+#   --data_path 0_VVUser.csv \
+#   --model_id EVVUser_96_96 \
+#   --model ns_Transformer \
+#   --data VVUser \
+#   --features S \
+#   --seq_len 96 \
+#   --label_len 48 \
+#   --pred_len 96 \
+#   --e_layers 2 \
+#   --d_layers 1 \
+#   --enc_in 1 \
+#   --dec_in 1 \
+#   --c_out 1 \
+#   --gpu 0 \
+#   --des 'Exp_h256_l2' \
+#   --p_hidden_dims 256 256 \
+#   --p_hidden_layers 2 \
+#   --itr 1 \
+#   --freq 'm' \
+#   --loso 1 &
 
 # python -u run.py \
 #   --is_training 1 \
