@@ -72,6 +72,9 @@ parser.add_argument('--seed', type=int, default=2021, help='random seed')
 parser.add_argument('--p_hidden_dims', type=int, nargs='+', default=[128, 128], help='hidden layer dimensions of projector (List)')
 parser.add_argument('--p_hidden_layers', type=int, default=2, help='number of hidden layers in projector')
 
+# LOSO training
+parser.add_argument('--loso', type=int, default=0, help='whether to use LOSO (Leave-One-Subject-Out) training')
+
 args = parser.parse_args()
 
 args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
@@ -88,6 +91,13 @@ if args.use_gpu:
         args.device_ids = [int(id_) for id_ in device_ids]
         args.gpu = args.device_ids[0]
     else:
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
+        print(f"using device: {device}")
         torch.cuda.set_device(args.gpu)
 
 print('Args in experiment:')
@@ -118,14 +128,42 @@ if args.is_training:
 
         exp = Exp(args)  # set experiments
         print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
-        exp.train(setting)
+        exp.train(setting, loso=args.loso)
 
-        print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-        exp.test(setting)
 
-        if args.do_predict:
-            print('>>>>>>>predicting : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-            exp.predict(setting, True)
+        print('>>>>>>>start training WITH SUBSAMPLIG: {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
+        # setting record of experiments
+        setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}'.format(
+            args.model_id,
+            args.model,
+            args.data,
+            args.features,
+            args.seq_len,
+            args.label_len,
+            args.pred_len,
+            args.d_model,
+            args.n_heads,
+            args.e_layers,
+            args.d_layers,
+            args.d_ff,
+            args.factor,
+            args.embed,
+            args.distil,
+            args.des, ii)
+        
+        args.data_path = "0_VVUserSubSampled.csv"  # use subsampled data
+        args.seq_len = 20  # adjust seq_len for subsampled data
+        args.label_len = 10
+        args.pred_len = 20
+        exp = Exp(args)  # set experiments
+        exp.train(setting, loso=args.loso, sub_sampling=True)
+
+        # print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
+        # exp.test(setting)
+
+        # if args.do_predict:
+        #     print('>>>>>>>predicting : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
+        #     exp.predict(setting, True)
 
         torch.cuda.empty_cache()
 else:
