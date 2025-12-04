@@ -7,7 +7,7 @@ python -u run.py \
   --model_id ETTm2_96_96 \
   --model ns_Transformer \
   --data ETTm2 \
-  --features S \
+  --features M \
   --seq_len 96 \
   --label_len 48 \
   --pred_len 96 \

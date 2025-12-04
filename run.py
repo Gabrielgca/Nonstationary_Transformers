@@ -87,7 +87,14 @@ if args.use_gpu:
         device_ids = args.devices.split(',')
         args.device_ids = [int(id_) for id_ in device_ids]
         args.gpu = args.device_ids[0]
-    else:
+    else:        
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
+        print(f"using device: {device}")
         torch.cuda.set_device(args.gpu)
 
 print('Args in experiment:')

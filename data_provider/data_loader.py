@@ -151,11 +151,11 @@ class Dataset_ETT_minute(Dataset):
 
         if self.features == 'M' or self.features == 'MS':
             cols_data = df_raw.columns[1:]
-            print("cols_data, ", cols_data)
+            # print("cols_data, ", cols_data)
             df_data = df_raw[cols_data]
         elif self.features == 'S':
             df_data = df_raw[[self.target]]
-            print("df_data, ", df_data)
+            # print("df_data, ", df_data)
 
         if self.scale:
             train_data = df_data[border1s[0]:border2s[0]]
