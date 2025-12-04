@@ -109,7 +109,7 @@ class Exp_Main(Exp_Basic):
         criterion = self._select_criterion()
 
         if self.args.use_amp:
-            scaler = torch.cuda.amp.GradScaler()
+            scaler = torch.amp.GradScaler()
 
         for epoch in range(self.args.train_epochs):
             iter_count = 0
@@ -132,7 +132,7 @@ class Exp_Main(Exp_Basic):
 
                 # encoder - decoder
                 if self.args.use_amp:
-                    with torch.cuda.amp.autocast():
+                    with torch.amp.autocast():
                         if self.args.output_attention:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
                         else:
@@ -216,7 +216,7 @@ class Exp_Main(Exp_Basic):
                 dec_inp = torch.cat([batch_y[:, :self.args.label_len, :], dec_inp], dim=1).float().to(self.device)
                 # encoder - decoder
                 if self.args.use_amp:
-                    with torch.cuda.amp.autocast():
+                    with torch.amp.autocast():
                         if self.args.output_attention:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)[0]
                         else:
