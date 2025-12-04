@@ -28,7 +28,7 @@ class EarlyStopping:
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.val_loss_min = np.Inf
+        self.val_loss_min = np.inf
         self.delta = delta
 
     def __call__(self, val_loss, model, path):
@@ -72,13 +72,21 @@ class StandardScaler():
         return (data * self.std) + self.mean
 
 
-def visual(true, preds=None, name='./pic/test.pdf'):
+def visual(true, preds, t, name='./pic/test.pdf'):
     """
-    Results visualization
+    Visualize GT and prediction with aligned timestamps.
+    true: array, shape (T,)
+    preds: array, shape (T,)
+    t: array, shape (T,) real timestamps
     """
     plt.figure()
-    plt.plot(true, label='GroundTruth', linewidth=2)
-    if preds is not None:
-        plt.plot(preds, label='Prediction', linewidth=2)
+    plt.plot(t, true, label='GroundTruth', linewidth=2)
+    plt.plot(t, preds, label='Prediction', linewidth=2)
+
+    plt.xlabel("Time")
+    plt.ylabel("Angle (degrees)")
     plt.legend()
-    plt.savefig(name, bbox_inches='tight')
+    plt.tight_layout()
+    plt.savefig(name)
+    plt.close()
+

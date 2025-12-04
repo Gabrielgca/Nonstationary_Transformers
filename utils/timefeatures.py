@@ -98,19 +98,15 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
             DayOfYear,
         ],
         offsets.Second: [
-            SecondOfMinute,
-            MinuteOfHour,
-            HourOfDay,
-            DayOfWeek,
-            DayOfMonth,
-            DayOfYear,
+            SecondOfMinute
         ],
     }
-
+    print("freq_str", freq_str)
     offset = to_offset(freq_str)
-
+    print(offset)
     for offset_type, feature_classes in features_by_offsets.items():
         if isinstance(offset, offset_type):
+            print(feature_classes)
             return [cls() for cls in feature_classes]
 
     supported_freq_msg = f"""

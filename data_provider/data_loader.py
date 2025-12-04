@@ -4,8 +4,9 @@ import pandas as pd
 import os
 import torch
 from torch.utils.data import Dataset, DataLoader
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from utils.timefeatures import time_features
+from sklearn.model_selection import train_test_split
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -155,7 +156,7 @@ class Dataset_ETT_minute(Dataset):
             df_data = df_raw[cols_data]
         elif self.features == 'S':
             df_data = df_raw[[self.target]]
-            print("df_data, ", df_data)
+            print("df_data.shape ", df_data.shape)
 
         if self.scale:
             train_data = df_data[border1s[0]:border2s[0]]
@@ -174,10 +175,17 @@ class Dataset_ETT_minute(Dataset):
             df_stamp['minute'] = df_stamp.date.apply(lambda row: row.minute, 1)
             df_stamp['minute'] = df_stamp.minute.map(lambda x: x // 15)
             data_stamp = df_stamp.drop(['date'], 1).values
+            print("df_stamp shape:", df_stamp.shape)
+            print("data_stamp shape:", data_stamp.shape)
         elif self.timeenc == 1:
+            print("self.freq:", self.freq)
+            print(pd.to_datetime(df_stamp['date'].values))
             data_stamp = time_features(pd.to_datetime(df_stamp['date'].values), freq=self.freq)
             data_stamp = data_stamp.transpose(1, 0)
-
+            print("data_stamp AAAA shape:", data_stamp.shape)
+            print("data_stamp BBBB:", data_stamp)
+        
+        print("data[border1:border2]", data[border1:border2].shape)
         self.data_x = data[border1:border2]
         self.data_y = data[border1:border2]
         if (self.data_y == self.data_x).all():
@@ -194,6 +202,9 @@ class Dataset_ETT_minute(Dataset):
         seq_y = self.data_y[r_begin:r_end]
         seq_x_mark = self.data_stamp[s_begin:s_end]
         seq_y_mark = self.data_stamp[r_begin:r_end]
+
+        # print( "seq_x.shape", seq_x.shape)
+
 
         return seq_x, seq_y, seq_x_mark, seq_y_mark
 
@@ -407,3 +418,176 @@ class Dataset_Pred(Dataset):
 
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)
+
+class Dataset_VVUser(Dataset):
+    def __init__(self, root_path, flag='train', size=None,
+                 features='S', data_path='VVUser.csv',
+                 target='HeadRX', scale=True, timeenc=0, freq='h'):
+        # size [seq_len, label_len, pred_len]
+        # info
+        if size == None:
+            self.seq_len = 24 * 4 * 4
+            self.label_len = 24 * 4
+            self.pred_len = 24 * 4
+        else:
+            self.seq_len = size[0]
+            self.label_len = size[1]
+            self.pred_len = size[2]
+
+        self.features = features
+        self.target = target
+        self.scale = scale
+        self.timeenc = timeenc
+        self.freq = freq
+        print("freq in Dataset_VVUser:", freq)
+        self.time_standard_scaler = {}   # per participant
+        self.time_minmax_scaler = {}    # per participant
+        self.root_path = root_path
+        self.data_path = data_path
+
+        self.__read_data__()
+    
+    def __read_data__(self):
+        df_raw = pd.read_csv(os.path.join(self.root_path,
+                                          self.data_path))
+
+        if self.features == 'M' or self.features == 'MS':
+            # HeadX, HeadY, HeadZ, HeadRX, HeadRY, HeadRZ
+            df_data = df_raw.iloc[:, 2:7] 
+        elif self.features == 'S':
+            # Only HeadRX = yaw
+            print("df_raw columns:", df_raw.columns)
+            df_data = df_raw[["HeadRX","ParticipantID"]]
+            df_data['HeadRX'] = df_data['HeadRX'].apply(lambda angle_360 : (((angle_360 + 180) % 360) - 180))
+            print(df_data['HeadRX'].head(75))
+        
+        self.windows = []
+        for id in df_raw['ParticipantID'].unique():
+            participant_data = df_raw[df_raw['ParticipantID'] == id]
+            # Only working with univariate for now
+            seq = df_data[df_data['ParticipantID'] == id]
+            seq.drop(columns=['ParticipantID'], inplace=True)
+            seq = seq.values
+            timestamp = participant_data['Timer'].values
+
+           
+            # Create windows
+            N = len(seq)
+            # print("Participant ID:", id, "Data points:", N)
+            scaler = StandardScaler()
+            scaler.fit(timestamp.reshape(-1, 1))
+            minMax = MinMaxScaler()
+            minMax.fit(timestamp.reshape(-1, 1))
+            for i in range(0, N - self.seq_len - self.pred_len):
+                if i + self.seq_len < N:
+                    x = seq[i:i + self.seq_len]        # input sequence
+                    y = seq[i + self.seq_len - self.label_len : i + self.seq_len + self.pred_len]            # target sequence
+                    
+                    # print("x shape:", x.shape)
+                    # #check TimeFeatureEmbedding
+                    # # x_original = x
+                    x_sin = np.sin(np.deg2rad(x))
+                    x_cos = np.cos(np.deg2rad(x))
+
+                    y_sin = np.sin(np.deg2rad(y))
+                    y_cos = np.cos(np.deg2rad(y))
+
+                    x = np.stack([x_sin, x_cos], axis=1).squeeze()
+                    y = np.stack([y_sin, y_cos], axis=1).squeeze()
+
+                    # # # print("x shape", x.shape)
+
+                    # # x_back = np.atan2(x[:, 0], x[:, 1])
+                    # # y_back = np.atan2(y[:, 0], y[:, 1])
+
+                    # # print(f"x before: {x_original[0]} and after {np.rad2deg(x_back)[0]}")
+                    # # print(f"x before: {x_original[23]} and after {np.rad2deg(x_back)[23]}")
+
+                    t = timestamp[i:i+self.seq_len]
+                    dt = np.diff(t, prepend=t[0])      
+                    x_mark = t.reshape(-1, 1)   
+                    # t = scaler.transform(t.reshape(-1, 1))
+                    t_min_max = minMax.transform(t.reshape(-1, 1))
+
+                    x_mark = np.stack([t.reshape(-1, 1), t_min_max], axis=1).squeeze()
+                    # print("x_mark", x_mark)   
+
+                    t2 = timestamp[i + self.seq_len - self.label_len : i + self.seq_len + self.pred_len]
+                    dt2 = np.diff(t2, prepend=t2[0])
+                    # t2 = scaler.transform(t2.reshape(-1, 1))
+                    t2_min_max = minMax.transform(t2.reshape(-1, 1))
+                    y_mark = np.stack([t2.reshape(-1, 1), t2_min_max], axis=1).squeeze()
+                    # total = self.seq_len + self.pred_len
+                    # x_mark = (np.arange(self.seq_len) / total).reshape(-1, 1)
+                    # y_mark = (np.arange(self.seq_len - self.label_len, self.seq_len + self.pred_len) / total).reshape(-1, 1)
+                    # print("x_mark shape:", x_mark.shape)
+                    self.windows.append((x, y, x_mark, y_mark, id))
+
+
+
+
+
+                    self.time_standard_scaler[id] = scaler    # store per participant
+                    self.time_minmax_scaler[id] = minMax
+
+
+
+
+
+
+                    # x = seq[i:i + self.seq_len]        # input sequence
+                    # y = seq[i + self.seq_len - self.label_len : i + self.seq_len + self.pred_len]            # target sequence
+                    
+                    # # print("x shape:", x.shape)
+                    # # #check TimeFeatureEmbedding
+                    # # # x_original = x
+                    # x_sin = np.sin(np.deg2rad(x))
+                    # x_cos = np.cos(np.deg2rad(x))
+
+                    # y_sin = np.sin(np.deg2rad(y))
+                    # y_cos = np.cos(np.deg2rad(y))
+
+                    # x = np.stack([x_sin, x_cos], axis=1).squeeze()
+                    # y = np.stack([y_sin, y_cos], axis=1).squeeze()
+
+                    # # # # print("x shape", x.shape)
+
+                    # # # x_back = np.atan2(x[:, 0], x[:, 1])
+                    # # # y_back = np.atan2(y[:, 0], y[:, 1])
+
+                    # # # print(f"x before: {x_original[0]} and after {np.rad2deg(x_back)[0]}")
+                    # # # print(f"x before: {x_original[23]} and after {np.rad2deg(x_back)[23]}")
+                    # t = timestamp[i:i+self.seq_len]
+                    # dt = np.diff(t, prepend=t[0])      
+                    # x_mark = t.reshape(-1, 1)   
+
+                    # # print("x_mark", x_mark)   
+
+                    # t2 = timestamp[i + self.seq_len - self.label_len : i + self.seq_len + self.pred_len]
+                    # dt2 = np.diff(t2, prepend=t2[0])
+                    # y_mark = t2.reshape(-1, 1)
+                    # print("x_mark shape:", x_mark.shape)
+                    # self.windows.append((x, y, x_mark, y_mark, id))
+            # print("Participant ID:", id, "Total windows:", len(self.windows))
+
+        self.number_of_participants = len(df_raw['ParticipantID'].unique())
+        
+    def __getitem__(self, index):
+        seq_info = self.windows[index]
+        seq_x = seq_info[0]
+        seq_y = seq_info[1]
+        seq_x_mark = seq_info[2]
+        seq_y_mark = seq_info[3]
+
+        # x_enc shape: torch.Size([32, 96, 1])
+        # x_mark_enc shape: torch.Size([32, 96])
+
+
+        # x_enc shape: torch.Size([32, 96, 1])
+        # x_mark_enc shape: torch.Size([32, 96, 4])
+
+        return seq_x, seq_y, seq_x_mark, seq_y_mark
+    
+    def __len__(self):
+        return len(self.windows)
+    
