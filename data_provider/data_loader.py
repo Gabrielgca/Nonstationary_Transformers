@@ -1,3 +1,4 @@
+import ast
 import os
 import numpy as np
 import pandas as pd
@@ -5,6 +6,7 @@ import os
 import torch
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
 from utils.timefeatures import time_features
 import warnings
 
@@ -101,7 +103,7 @@ class Dataset_ETT_hour(Dataset):
 
 class Dataset_ETT_minute(Dataset):
     def __init__(self, root_path, flag='train', size=None,
-                 features='S', data_path='ETTm1.csv',
+                 features='S', data_path='ETTm2_abrupt.csv',
                  target='OT', scale=True, timeenc=0, freq='t'):
         # size [seq_len, label_len, pred_len]
         # info
@@ -144,27 +146,60 @@ class Dataset_ETT_minute(Dataset):
         # 4 * 30 * 24 * 4 = 4 months
         # 12 * 30 * 24 * 4 + 4 * 30 * 24 * 4 = 16 months
 
-        border1s = [0, 12 * 30 * 24 * 4 - self.seq_len, 12 * 30 * 24 * 4 + 4 * 30 * 24 * 4 - self.seq_len]
-        border2s = [12 * 30 * 24 * 4, 12 * 30 * 24 * 4 + 4 * 30 * 24 * 4, 12 * 30 * 24 * 4 + 8 * 30 * 24 * 4]
-        border1 = border1s[self.set_type]
-        border2 = border2s[self.set_type]
+        indices = list(range(len(df_raw)))
+
+        # Split
+        train_idx, temp_idx = train_test_split(
+            indices,
+            test_size=0.3,
+            shuffle=False  # no shuffling for time-series
+        )
+
+        val_idx, test_idx = train_test_split(
+            temp_idx,
+            test_size=0.5,
+            shuffle=False
+        )
+
+        #Removing the last se
+        val_idx = val_idx[: -self.seq_len]
+        test_idx = test_idx[self.seq_len:]
+
+        monthly_data = 30 * 24 * 4
+        year = 12 * monthly_data
+        
+
+        # border1s = [0,                year - self.seq_len,       year + 4 * monthly_data - self.seq_len]
+        # border2s = [year,             year + 4 * monthly_data,   year + 8 * monthly_data]
+        # border1 = border1s[self.set_type]
+        # border2 = border2s[self.set_type]
+
+        if self.set_type == 0:
+            self.indices = train_idx
+        elif self.set_type == 1:
+            self.indices = val_idx
+        else:
+            self.indices = test_idx
+
+        scale_idx = train_idx
+
 
         if self.features == 'M' or self.features == 'MS':
-            cols_data = df_raw.columns[1:]
-            # print("cols_data, ", cols_data)
+            # Get specific columns: HUFL,HULL,MUFL,MULL,LUFL,LULL,OT. 
+            cols_data = ['HUFL','HULL','MUFL','MULL','LUFL','LULL','OT']
             df_data = df_raw[cols_data]
         elif self.features == 'S':
             df_data = df_raw[[self.target]]
             # print("df_data, ", df_data)
 
         if self.scale:
-            train_data = df_data[border1s[0]:border2s[0]]
+            train_data = df_data.iloc[scale_idx]
             self.scaler.fit(train_data.values)
             data = self.scaler.transform(df_data.values)
         else:
             data = df_data.values
 
-        df_stamp = df_raw[['date']][border1:border2]
+        df_stamp = df_raw[['date']].iloc[self.indices]
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
         if self.timeenc == 0:
             df_stamp['month'] = df_stamp.date.apply(lambda row: row.month, 1)
@@ -178,10 +213,13 @@ class Dataset_ETT_minute(Dataset):
             data_stamp = time_features(pd.to_datetime(df_stamp['date'].values), freq=self.freq)
             data_stamp = data_stamp.transpose(1, 0)
 
-        self.data_x = data[border1:border2]
-        self.data_y = data[border1:border2]
-        if (self.data_y == self.data_x).all():
-            print("Data_y equals Data_x")
+        # self.data_x = data[border1:border2]
+        # self.data_y = data[border1:border2]
+        self.data_x = data[self.indices]
+        self.data_y = data[self.indices]
+
+        # if (self.data_y == self.data_x).all():
+        #     print("Data_y equals Data_x")
         self.data_stamp = data_stamp
 
     def __getitem__(self, index):
@@ -199,6 +237,49 @@ class Dataset_ETT_minute(Dataset):
 
     def __len__(self):
         return len(self.data_x) - self.seq_len - self.pred_len + 1
+    
+    def normalize_list(self, x):
+        # Already a list
+        if isinstance(x, list):
+            return x
+        # String that looks like a list
+        if isinstance(x, str):
+            try:
+                return ast.literal_eval(x)
+            except:
+                return []
+        # Anything else → empty
+        return []
+
+    
+    def get_list_variables_abrupt(self, index):
+        df_raw = pd.read_csv(os.path.join(self.root_path,
+                                          self.data_path))
+        #Eu to pegando só a parte que não tá prevendo pq é index + seq_len
+        # Eu deveria pegar a parte que está sendo prevista
+        
+        is_abrupt_series = df_raw['is_abrupt'].iloc[index: index + self.seq_len]
+        # dbscan_start_series = df_raw['dbscan_start'].iloc[index: index + self.seq_len]
+
+        # Get unique values
+        lists = is_abrupt_series.apply(self.normalize_list)
+
+        variables_abrupt_change = set()
+        for lst in lists:
+            variables_abrupt_change.update(lst)
+
+        variable_idxs = {
+                         'HUFL': 0,
+                         'HULL': 1,
+                         'MUFL': 2,
+                         'MULL': 3,
+                         'LUFL': 4,
+                         'LULL': 5,
+                         'OT':   6,
+                        }
+
+        return variables_abrupt_change, variable_idxs
+
 
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)
