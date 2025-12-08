@@ -82,3 +82,29 @@ def visual(true, preds=None, name='./pic/test.pdf'):
         plt.plot(preds, label='Prediction', linewidth=2)
     plt.legend()
     plt.savefig(name, bbox_inches='tight')
+
+
+def visual_t(true, preds, t, outlier_samples, var_name, name='./pic/test.pdf'):
+    """
+    Visualize GT and prediction with aligned timestamps.
+    true: array, shape (T,)
+    preds: array, shape (T,)
+    t: array, shape (T,) real timestamps
+    """
+    plt.figure()
+    plt.plot(t, true, label='GroundTruth', linewidth=2)
+    plt.plot(t, preds, label='Prediction', linewidth=2)
+    if len(outlier_samples) > 0:
+        outlier_t = [t[i] for i in outlier_samples if i < len(t)]
+        outlier_y = [true[i] for i in outlier_samples if i < len(true)]
+        plt.scatter(outlier_t, outlier_y, color='red', label='Detected Abrupt Change', zorder=5)
+
+    plt.xlabel("Time")
+    if var_name:
+        plt.ylabel(f"{var_name}")
+    else:
+        plt.ylabel("Value")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(name)
+    plt.close()
