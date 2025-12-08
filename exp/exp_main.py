@@ -2,8 +2,10 @@ from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
 from models import Transformer, Informer, Autoformer
 from ns_models import ns_Transformer, ns_Informer, ns_Autoformer
-from utils.tools import EarlyStopping, adjust_learning_rate, visual
+from utils.tools import EarlyStopping, adjust_learning_rate, visual, visual_t
 from utils.metrics import metric
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import DBSCAN
 
 import numpy as np
 import torch
@@ -87,6 +89,7 @@ class Exp_Main(Exp_Basic):
                 loss = criterion(pred, true)
 
                 total_loss.append(loss)
+                # break  # DEBUGGING ONLY RUN 1 BATCH PER EPOCH
         total_loss = np.average(total_loss)
         self.model.train()
         return total_loss
@@ -170,6 +173,7 @@ class Exp_Main(Exp_Basic):
                 else:
                     loss.backward()
                     model_optim.step()
+                # break  # DEBUGGING ONLY RUN 1 BATCH PER EPOCH
 
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             train_loss = np.average(train_loss)
@@ -182,7 +186,6 @@ class Exp_Main(Exp_Basic):
             if early_stopping.early_stop:
                 print("Early stopping")
                 break
-
             adjust_learning_rate(model_optim, epoch + 1, self.args)
 
         best_model_path = path + '/' + 'checkpoint.pth'
@@ -198,6 +201,10 @@ class Exp_Main(Exp_Basic):
 
         preds = []
         trues = []
+
+        preds_abrupt = []
+        trues_abrupt = []
+
         folder_path = './test_results/' + setting + '/'
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
@@ -239,11 +246,120 @@ class Exp_Main(Exp_Basic):
 
                 preds.append(pred)
                 trues.append(true)
-                if i % 20 == 0:
-                    input = batch_x.detach().cpu().numpy()
-                    gt = np.concatenate((input[0, :, -1], true[0, :, -1]), axis=0)
-                    pd = np.concatenate((input[0, :, -1], pred[0, :, -1]), axis=0)
-                    visual(gt, pd, os.path.join(folder_path, str(i) + '.pdf'))
+                # print("i: ", i)
+
+                if i % (self.args.seq_len + self.args.pred_len) == 0:
+                    # 2) sliding window feature extraction
+                    
+                    dbscan_params = {
+                                    'HUFL': [0.8, 3],
+                                    'HULL': [0.3, 2],
+                                    'MUFL': [0.3, 2],
+                                    'MULL': [0.8, 3],
+                                    'LUFL': [0.8, 3],
+                                    'LULL': [1.0, 3],
+                                    'OT':   [0.5, 3],
+                                    
+                                    }
+                    found_vars = []
+                    found_vars_indexes = []
+                    keys_list = list(dbscan_params.keys())
+                    for params in dbscan_params:
+                        var_idx = keys_list.index(params)
+                        if self.args.features == 'S':
+                            var_idx = -1
+
+                        # print("var_idx", var_idx)
+                        eps = dbscan_params[params][0]
+                        min_samples = dbscan_params[params][1]
+                        
+                        # print("Testing eps: ", eps, " min_samples: ", min_samples, "for variable: ", params)
+
+                        
+                        input = batch_x.detach().cpu().numpy()
+                        gt = np.concatenate((input[0, :, var_idx], true[0, :, var_idx]), axis=0)
+                        
+                        # print("y shape ", gt)
+                        outlier_samples_all = []
+
+                        w = gt[self.args.seq_len: self.args.seq_len + self.args.pred_len]
+
+                        # print("w shape: ", w.shape)
+                        w_diff = np.diff(w)
+                        w_diff_abs = np.abs(w_diff)
+                        # print("w_diff_abs shape: ", w_diff_abs.shape)
+                        scaler = StandardScaler()
+                        X = scaler.fit_transform(w_diff_abs.reshape(-1, 1))
+                        
+                        cl = DBSCAN(eps=eps, min_samples=min_samples)   
+                        labels = cl.fit_predict(X) 
+
+                        outlier_windows_idx = np.where(labels == -1)[0]
+
+                        if len(outlier_windows_idx) > 0:
+                            found_vars.append(params)
+                            found_vars_indexes.append(var_idx)
+                            for idx in outlier_windows_idx:
+                                global_index = self.args.seq_len + idx
+
+                                outlier_samples_all.append([global_index, i])
+                        # print("## i: ", i)
+                        
+                        outlier_samples = [x[0] for x in outlier_samples_all]
+
+                        outlier_samples = np.unique(outlier_samples)
+                        # print("Number of abrupt changes: " ,len(outlier_samples))
+
+                        if len(outlier_samples) > 0:
+                            preds_abrupt.append(pred)
+                            trues_abrupt.append(true)
+
+                            for var_idx in found_vars_indexes:
+                                if self.args.features == 'S':
+                                    var_name = 'OT'
+                                else:
+                                    var_name = found_vars[found_vars_indexes.index(var_idx)]
+                                # print("var_name", var_name)
+                                gt = np.concatenate((input[0, :, var_idx], true[0, :, var_idx]), axis=0)
+                                pd = np.concatenate((input[0, :, var_idx], pred[0, :, var_idx]), axis=0)
+
+                                t = np.arange(i,i+self.args.seq_len + self.args.pred_len)
+                                visual_t(gt, pd, t, outlier_samples, var_name, os.path.join(folder_path, str(i) + '_' + var_name + '.pdf'))
+                        else:
+                            continue
+                            # print("No abrupt changes found")
+
+                        # list_variables_abrupt, variable_idxs = test_data.get_list_variables_abrupt(i)
+
+                    # print("is_abrupt:", eval(is_abrupt.values[0]), "dbscan_start:", eval(dbscan_start.values[0]))
+
+                    # if len(list_variables_abrupt) > 0 :
+                    #     preds_abrupt.append(pred)
+                    #     trues_abrupt.append(true)
+
+                        
+                        # found_vars = []
+                        # for var in list_variables_abrupt:
+                        #     if var in variable_idxs:
+                        #         found_vars.append(variable_idxs[var])
+
+                        # for var_idx in found_vars:
+
+                        #     var_name = [key for key, value in variable_idxs.items() if value == var_idx][0]
+
+                        #     input = batch_x.detach().cpu().numpy()
+                        #     gt = np.concatenate((input[0, :, var_idx], true[0, :, var_idx]), axis=0)
+                        #     pd = np.concatenate((input[0, :, var_idx], pred[0, :, var_idx]), axis=0)
+
+                        #     t = np.arange(i,i+self.args.seq_len + self.args.pred_len)
+                        #     visual_t(gt, pd, t, os.path.join(folder_path, str(i) + '_' + var_name + '.pdf'))
+                
+
+                # if i % 20 == 0:
+                #     input = batch_x.detach().cpu().numpy()
+                #     gt = np.concatenate((input[0, :, -1], true[0, :, -1]), axis=0)
+                #     pd = np.concatenate((input[0, :, -1], pred[0, :, -1]), axis=0)
+                #     visual(gt, pd, os.path.join(folder_path, str(i) + '.pdf'))
 
         preds = np.array(preds)
         trues = np.array(trues)
@@ -258,10 +374,27 @@ class Exp_Main(Exp_Basic):
             os.makedirs(folder_path)
 
         mae, mse, rmse, mape, mspe = metric(preds, trues)
+
+
+        preds_abrupt = np.array(preds_abrupt)
+        trues_abrupt = np.array(trues_abrupt)
+        print('test shape:', preds_abrupt.shape, trues_abrupt.shape)
+        preds_abrupt = preds_abrupt.reshape(-1, preds_abrupt.shape[-2], preds_abrupt.shape[-1])
+        trues_abrupt = trues_abrupt.reshape(-1, trues_abrupt.shape[-2], trues_abrupt.shape[-1])
+        print('test shape:', preds_abrupt.shape, trues_abrupt.shape)
+
+        # result save
+        folder_path = './results/' + setting + '/'
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+
+        mae_abrupt, mse_abrupt, rmse, mape, mspe = metric(preds_abrupt, trues_abrupt)
         print('mse:{}, mae:{}'.format(mse, mae))
+        print('mse_abrupt:{}, mae_abrupt:{}'.format(mse_abrupt, mae_abrupt))
         f = open("result.txt", 'a')
         f.write(setting + "  \n")
         f.write('mse:{}, mae:{}'.format(mse, mae))
+        f.write('\nmse_abrupt:{}, mae_abrupt:{}'.format(mse_abrupt, mae_abrupt))
         f.write('\n')
         f.write('\n')
         f.close()
