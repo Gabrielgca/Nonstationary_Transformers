@@ -1,4 +1,56 @@
-# Non-stationary Transformers
+# Non-stationary Transformers — Machine Learning Project
+
+To run the experiments from this project, follow the steps below.
+
+---
+
+## 1. Install Dependencies
+
+Install **Python 3.10** (the version used in the project; other versions may work but were not tested) and the required dependencies:
+
+```
+pip install -r requirements.txt
+
+```
+## 2. Run the Experiments
+
+Run the script below to compute MSE and MAE for both normal and abrupt-change scenarios:
+
+```
+/scripts/ETT_script/ns_Transformer.sh
+```
+
+The raw results will be stored in the file `results.txt`.
+
+## 3. Convert Raw Results to CSV
+
+To convert the raw results into a CSV file and compute average metrics, run:
+
+```
+python ./extract_results_extended.py
+```
+
+Make sure you create `result_extended.txt` or update the `file` variable inside the script to point to your results file.
+
+
+## 4. Generate the Graphs (Figures 3 and 4)
+
+Run the command below to generate the graphs used in the report:
+
+```
+python ./plot_graphs.py
+```
+
+As an addition, the notebook `MLProject_NonStationaryTransformer.ipynb` contains the code used to compute the DBSCAN hyperparameters for the NS-Transformer.
+
+The DBSCAN implementation is located in `./exp/exp_main.py`.
+
+
+The rest of this README file presents the authors annotations and considerations.
+
+
+-----------
+
 
 This is the codebase for the paper:
 [Non-stationary Transformers: Exploring the Stationarity in Time Series Forecasting](https://arxiv.org/abs/2205.14415), NeurIPS 2022. [[Slides]](https://cloud.tsinghua.edu.cn/f/8d6ce7b18d3c468190e7/), [[Poster]](https://cloud.tsinghua.edu.cn/f/6eea66909aa7465ca9a4/).
