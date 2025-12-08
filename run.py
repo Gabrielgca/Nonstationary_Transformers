@@ -71,15 +71,16 @@ parser.add_argument('--seed', type=int, default=2021, help='random seed')
 # de-stationary projector params
 parser.add_argument('--p_hidden_dims', type=int, nargs='+', default=[128, 128], help='hidden layer dimensions of projector (List)')
 parser.add_argument('--p_hidden_layers', type=int, default=2, help='number of hidden layers in projector')
+parser.add_argument('--extend_mlp', type=int, default=0, help='Extended version of MLP projector')
 
 args = parser.parse_args()
 
 args.use_gpu = True if torch.cuda.is_available() and args.use_gpu else False
 
-fix_seed = args.seed
-random.seed(fix_seed)
-torch.manual_seed(fix_seed)
-np.random.seed(fix_seed)
+# fix_seed = args.seed
+# random.seed(fix_seed)
+# torch.manual_seed(fix_seed)
+# np.random.seed(fix_seed)
 
 if args.use_gpu:
     if args.use_multi_gpu:
@@ -105,7 +106,7 @@ Exp = Exp_Main
 if args.is_training:
     for ii in range(args.itr):
         # setting record of experiments
-        setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}'.format(
+        setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_ext_{}_{}'.format(
             args.model_id,
             args.model,
             args.data,
@@ -121,7 +122,8 @@ if args.is_training:
             args.factor,
             args.embed,
             args.distil,
-            args.des, ii)
+            args.des, 
+            args.extend_mlp, ii)
 
         exp = Exp(args)  # set experiments
         print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
@@ -137,7 +139,7 @@ if args.is_training:
         torch.cuda.empty_cache()
 else:
     ii = 0
-    setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_{}'.format(args.model_id,
+    setting = '{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_dt{}_{}_ext_{}_{}'.format(args.model_id,
                                                                                                   args.model,
                                                                                                   args.data,
                                                                                                   args.features,
@@ -152,7 +154,8 @@ else:
                                                                                                   args.factor,
                                                                                                   args.embed,
                                                                                                   args.distil,
-                                                                                                  args.des, ii)
+                                                                                                  args.des, 
+                                                                                                  args.extend_mlp, ii)
 
     exp = Exp(args)  # set experiments
     print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
