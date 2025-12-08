@@ -37,7 +37,7 @@ for feat in ["M", "S"]:
 
         # Titles and labels
         if ext:
-            ax.set_title(f"MLP Projector Extended with Signal derivatives")
+            ax.set_title(f"MLP Projector Extended with Signal derivative")
         else:
             ax.set_title(f"Original MLP Projector")
         ax.set_xticks(x)
