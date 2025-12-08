@@ -46,7 +46,7 @@ As an addition, the notebook `MLProject_NonStationaryTransformer.ipynb` contains
 The DBSCAN implementation is located in `./exp/exp_main.py`.
 
 
-The rest of this README file presents the authors annotations and considerations.
+The remainder of this README contains the authors’ annotations and considerations.
 
 
 -----------
